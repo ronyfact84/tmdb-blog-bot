@@ -30,7 +30,7 @@ def get_upcoming():
     url = f"https://api.themoviedb.org/3/movie/upcoming?api_key={TMDB_API_KEY}"
     return requests.get(url, timeout=20).json().get("results", [])
 
-# ---------------- DUPLICATE BLOCKER ----------------
+# ---------------- DUPLICATE BLOCK ----------------
 
 def already_posted(service, movie_id):
     try:
@@ -42,67 +42,35 @@ def already_posted(service, movie_id):
         pass
     return False
 
-# ---------------- TRAILER EMBED ----------------
+# ---------------- TRAILER POPUP SYSTEM ----------------
 
-def trailer_embed(title):
-    return f"""
-    <iframe width="100%" height="420"
-    src="https://www.youtube.com/embed?listType=search&list={title}+official+trailer"
-    frameborder="0"
-    allow="autoplay; encrypted-media"
-    allowfullscreen>
-    </iframe>
-    """
-
-# ---------------- POPUP TRAILER UI ----------------
-
-def popup_trailer_ui(title):
-    embed = trailer_embed(title)
+def trailer_system(title):
+    search_url = f"https://www.youtube.com/results?search_query={title}+official+trailer"
 
     return f"""
-    <div style="margin-top:15px;">
-
-    <button onclick="openTrailer()"
-    style="
-        background:#e50914;
-        color:white;
-        padding:10px 18px;
-        border:none;
-        border-radius:6px;
-        font-weight:bold;
-        cursor:pointer;">
-        ▶ Watch Trailer
-    </button>
-
-    <div id="trailerPopup" style="
+    <div id="popup" style="
         display:none;
         position:fixed;
-        top:0;
-        left:0;
-        width:100%;
-        height:100%;
+        top:0;left:0;
+        width:100%;height:100%;
         background:rgba(0,0,0,0.95);
         z-index:9999;
         justify-content:center;
         align-items:center;">
 
-        <div style="width:90%;max-width:850px;position:relative;">
+        <div style="width:90%;max-width:900px;position:relative;">
 
-            {embed}
+            <iframe width="100%" height="500"
+            src="{search_url}"
+            style="border:none;background:white;">
+            </iframe>
 
             <button onclick="closeTrailer()"
-            style="
-                position:absolute;
-                top:-20px;
-                right:-20px;
-                background:white;
-                border:none;
-                font-size:22px;
-                width:40px;
-                height:40px;
-                border-radius:50%;
-                cursor:pointer;">
-                ✖
+            style="position:absolute;top:-20px;right:-20px;
+            background:white;border:none;
+            font-size:22px;width:40px;height:40px;
+            border-radius:50%;cursor:pointer;">
+            ✖
             </button>
 
         </div>
@@ -110,15 +78,13 @@ def popup_trailer_ui(title):
 
     <script>
     function openTrailer() {{
-        document.getElementById("trailerPopup").style.display = "flex";
+        document.getElementById("popup").style.display = "flex";
     }}
 
     function closeTrailer() {{
-        document.getElementById("trailerPopup").style.display = "none";
+        document.getElementById("popup").style.display = "none";
     }}
     </script>
-
-    </div>
     """
 
 # ---------------- CATEGORY ----------------
@@ -162,28 +128,14 @@ for movie in movies[:10]:
         print("Skipped:", title)
         continue
 
+    # clickable poster (OPEN TRAILER)
     poster_html = ""
     if poster:
         poster_html = f"""
         <img src="https://image.tmdb.org/t/p/w500{poster}"
-        style="width:100%;border-radius:10px;">
+        style="width:100%;border-radius:10px;cursor:pointer;"
+        onclick="openTrailer()">
         """
-
-    trailer_ui = popup_trailer_ui(title)
-
-    details_btn = f"""
-    <a href="https://www.themoviedb.org/movie/{movie_id}"
-    target="_blank"
-    style="
-        background:#2196F3;
-        color:white;
-        padding:10px 18px;
-        text-decoration:none;
-        border-radius:6px;
-        margin-left:10px;">
-    ℹ Details
-    </a>
-    """
 
     category = get_category(title)
 
@@ -196,13 +148,11 @@ for movie in movies[:10]:
 
     <p>{overview}</p>
 
-    <h3>🎬 Watch Trailer</h3>
+    <h3>🎬 Trailer</h3>
 
-    {trailer_ui}
+    <p>Click poster to watch trailer</p>
 
-    <div style="margin-top:10px;">
-    {details_btn}
-    </div>
+    {trailer_system(title)}
 
     <hr>
 
