@@ -7,9 +7,6 @@ from googleapiclient.discovery import build
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
 BLOG_ID = os.environ.get("BLOG_ID")
 
-# YouTube API optional (no crash if missing)
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
-
 # ---------------- BLOGGER AUTH ----------------
 
 def get_service():
@@ -20,7 +17,6 @@ def get_service():
         client_id=os.environ.get("CLIENT_ID"),
         client_secret=os.environ.get("CLIENT_SECRET")
     )
-
     creds.refresh(Request())
     return build("blogger", "v3", credentials=creds)
 
@@ -33,7 +29,14 @@ def get_movies():
     url = f"https://api.themoviedb.org/3/movie/popular?api_key={TMDB_API_KEY}"
     return requests.get(url, timeout=20).json().get("results", [])
 
-# ---------------- DUPLICATE CHECK (SAFE) ----------------
+def get_upcoming():
+    if not TMDB_API_KEY:
+        return []
+
+    url = f"https://api.themoviedb.org/3/movie/upcoming?api_key={TMDB_API_KEY}"
+    return requests.get(url, timeout=20).json().get("results", [])
+
+# ---------------- DUPLICATE CHECK ----------------
 
 def already_posted(service, movie_id):
     try:
@@ -47,27 +50,18 @@ def already_posted(service, movie_id):
 
     return False
 
-# ---------------- TRAILER ----------------
+# ---------------- TRAILER SYSTEM (PRO SAFE) ----------------
 
 def get_trailer(title):
-    if not YOUTUBE_API_KEY:
-        return None
+    search_url = f"https://www.youtube.com/results?search_query={title}+official+trailer"
 
-    url = "https://www.googleapis.com/youtube/v3/search"
-
-    params = {
-        "part": "snippet",
-        "q": f"{title} official trailer",
-        "type": "video",
-        "maxResults": 1,
-        "key": YOUTUBE_API_KEY
-    }
-
-    try:
-        res = requests.get(url, params=params, timeout=20).json()
-        return res["items"][0]["id"]["videoId"]
-    except:
-        return None
+    return f"""
+    <a href="{search_url}" target="_blank"
+    style="background:red;color:white;padding:10px 18px;
+    text-decoration:none;border-radius:5px;display:inline-block;">
+    ▶ Watch Trailer
+    </a>
+    """
 
 # ---------------- CATEGORY ----------------
 
@@ -98,9 +92,10 @@ def post(service, title, content, category):
 # ---------------- MAIN ----------------
 
 service = get_service()
-movies = get_movies()
 
-for movie in movies[:5]:
+all_movies = get_movies() + get_upcoming()
+
+for movie in all_movies[:8]:
 
     movie_id = movie.get("id")
     title = movie.get("title", "Untitled")
@@ -120,28 +115,9 @@ for movie in movies[:5]:
         """
 
     # Trailer
-    video_id = get_trailer(title)
-
-    if video_id:
-        trailer_html = f"""
-        <iframe width="100%" height="400"
-        src="https://www.youtube.com/embed/{video_id}"
-        frameborder="0" allowfullscreen></iframe>
-        """
-        watch_link = f"https://www.youtube.com/watch?v={video_id}"
-    else:
-        trailer_html = "<p>No trailer found</p>"
-        watch_link = f"https://www.youtube.com/results?search_query={title}+trailer"
+    trailer_btn = get_trailer(title)
 
     # Buttons
-    watch_btn = f"""
-    <a href="{watch_link}" target="_blank"
-    style="background:#e50914;color:white;padding:10px 18px;
-    text-decoration:none;border-radius:5px;">
-    ▶ Watch Trailer
-    </a>
-    """
-
     details_btn = f"""
     <a href="https://www.themoviedb.org/movie/{movie_id}" target="_blank"
     style="background:#2196F3;color:white;padding:10px 18px;
@@ -162,10 +138,10 @@ for movie in movies[:5]:
     <p>{overview}</p>
 
     <h3>🎬 Trailer</h3>
-    {trailer_html}
+
+    {trailer_btn}
 
     <div style="margin-top:10px;">
-    {watch_btn}
     {details_btn}
     </div>
 
