@@ -42,18 +42,36 @@ def already_posted(service, movie_id):
         pass
     return False
 
-# ---------------- PRO POPUP TRAILER ----------------
+# ---------------- TRAILER EMBED ----------------
+
+def trailer_embed(title):
+    return f"""
+    <iframe width="100%" height="420"
+    src="https://www.youtube.com/embed?listType=search&list={title}+official+trailer"
+    frameborder="0"
+    allow="autoplay; encrypted-media"
+    allowfullscreen>
+    </iframe>
+    """
+
+# ---------------- POPUP TRAILER UI ----------------
 
 def popup_trailer_ui(title):
-    search_url = f"https://www.youtube.com/results?search_query={title}+official+trailer"
+    embed = trailer_embed(title)
 
     return f"""
     <div style="margin-top:15px;">
 
     <button onclick="openTrailer()"
-    style="background:#e50914;color:white;padding:10px 18px;
-    border:none;border-radius:6px;font-weight:bold;cursor:pointer;">
-    ▶ Watch Trailer
+    style="
+        background:#e50914;
+        color:white;
+        padding:10px 18px;
+        border:none;
+        border-radius:6px;
+        font-weight:bold;
+        cursor:pointer;">
+        ▶ Watch Trailer
     </button>
 
     <div id="trailerPopup" style="
@@ -63,23 +81,28 @@ def popup_trailer_ui(title):
         left:0;
         width:100%;
         height:100%;
-        background:rgba(0,0,0,0.9);
+        background:rgba(0,0,0,0.95);
         z-index:9999;
         justify-content:center;
         align-items:center;">
 
-        <div style="width:90%;max-width:800px;position:relative;">
+        <div style="width:90%;max-width:850px;position:relative;">
 
-            <iframe width="100%" height="450"
-            src="https://www.youtube.com/embed?listType=search&list={title}+trailer"
-            frameborder="0" allowfullscreen>
-            </iframe>
+            {embed}
 
             <button onclick="closeTrailer()"
-            style="position:absolute;top:-15px;right:-15px;
-            background:white;border:none;font-size:20px;
-            border-radius:50%;width:35px;height:35px;cursor:pointer;">
-            ✖
+            style="
+                position:absolute;
+                top:-20px;
+                right:-20px;
+                background:white;
+                border:none;
+                font-size:22px;
+                width:40px;
+                height:40px;
+                border-radius:50%;
+                cursor:pointer;">
+                ✖
             </button>
 
         </div>
@@ -94,13 +117,6 @@ def popup_trailer_ui(title):
         document.getElementById("trailerPopup").style.display = "none";
     }}
     </script>
-
-    <a href="{search_url}" target="_blank"
-    style="display:inline-block;margin-top:10px;
-    background:#444;color:white;padding:8px 14px;
-    border-radius:6px;text-decoration:none;">
-    🔎 Search Trailer
-    </a>
 
     </div>
     """
@@ -135,7 +151,7 @@ service = get_service()
 
 movies = get_movies() + get_upcoming()
 
-for movie in movies[:8]:
+for movie in movies[:10]:
 
     movie_id = movie.get("id")
     title = movie.get("title", "Untitled")
@@ -158,8 +174,13 @@ for movie in movies[:8]:
     details_btn = f"""
     <a href="https://www.themoviedb.org/movie/{movie_id}"
     target="_blank"
-    style="background:#2196F3;color:white;padding:10px 18px;
-    text-decoration:none;border-radius:6px;margin-left:10px;">
+    style="
+        background:#2196F3;
+        color:white;
+        padding:10px 18px;
+        text-decoration:none;
+        border-radius:6px;
+        margin-left:10px;">
     ℹ Details
     </a>
     """
@@ -175,7 +196,7 @@ for movie in movies[:8]:
 
     <p>{overview}</p>
 
-    <h3>🎬 Trailer</h3>
+    <h3>🎬 Watch Trailer</h3>
 
     {trailer_ui}
 
