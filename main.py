@@ -4,8 +4,11 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
+# ---------------- ENV ----------------
+
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
 BLOG_ID = os.environ.get("BLOG_ID")
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
 # ---------------- BLOGGER AUTH ----------------
 
@@ -40,29 +43,28 @@ def already_posted(movie_id):
         pass
     return False
 
-# ---------------- TRAILER (STABLE LINK) ----------------
+# ---------------- REAL TRAILER (YOUTUBE API) ----------------
 
-def trailer_system(title):
-    url = f"https://www.youtube.com/results?search_query={title}+official+trailer"
+def get_trailer(title):
+    query = f"{title} official trailer"
 
-    return f"""
-    <div style="margin-top:10px;">
+    url = f"https://www.googleapis.com/youtube/v3/search?part=id&q={query}&key={YOUTUBE_API_KEY}&maxResults=1&type=video"
 
-    <a href="{url}" target="_blank"
-    style="
-        display:block;
-        padding:15px;
-        background:#e50914;
-        color:white;
-        text-align:center;
-        border-radius:8px;
-        text-decoration:none;
-        font-weight:bold;">
-        ▶ Watch Trailer
-    </a>
+    try:
+        res = requests.get(url, timeout=20).json()
+        video_id = res["items"][0]["id"]["videoId"]
 
-    </div>
-    """
+        embed = f"https://www.youtube.com/embed/{video_id}"
+
+        return f"""
+        <iframe width="100%" height="500"
+        src="{embed}"
+        frameborder="0"
+        allowfullscreen></iframe>
+        """
+
+    except:
+        return "<p>Trailer not available</p>"
 
 # ---------------- CATEGORY ----------------
 
@@ -76,7 +78,7 @@ def get_category(title):
         return "Web Series"
     return "Hollywood Movies"
 
-# ---------------- POST ----------------
+# ---------------- POST TO BLOGGER ----------------
 
 def post(title, content, category):
     service.posts().insert(
@@ -110,6 +112,7 @@ for movie in movies[:10]:
         style="width:100%;border-radius:10px;">
         """
 
+    trailer_html = get_trailer(title)
     category = get_category(title)
 
     content = f"""
@@ -121,9 +124,9 @@ for movie in movies[:10]:
 
     <p>{overview}</p>
 
-    <h3>🎬 Trailer</h3>
+    <h3>🎬 Official Trailer</h3>
 
-    {trailer_system(title)}
+    {trailer_html}
 
     <hr>
 
