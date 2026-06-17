@@ -3,28 +3,28 @@ import json
 import requests
 from googleapiclient.discovery import build
 
-# =========================
-# ENV VARIABLES
-# =========================
+# =====================
+# ENV
+# =====================
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 BLOG_ID = os.getenv("BLOG_ID")
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
 
-POSTED_FILE = "posted.json"
+POST_FILE = "posted.json"
 
-# =========================
+# =====================
 # LOAD POSTED VIDEOS
-# =========================
-if os.path.exists(POSTED_FILE):
-    posted_videos = set(json.load(open(POSTED_FILE)))
+# =====================
+if os.path.exists(POST_FILE):
+    posted = set(json.load(open(POST_FILE)))
 else:
-    posted_videos = set()
+    posted = set()
 
-# =========================
+# =====================
 # GET ACCESS TOKEN
-# =========================
+# =====================
 def get_access_token():
     url = "https://oauth2.googleapis.com/token"
 
@@ -35,43 +35,45 @@ def get_access_token():
         "grant_type": "refresh_token"
     }
 
-    res = requests.post(url, data=data)
-    token = res.json()
+    r = requests.post(url, data=data)
+    res = r.json()
 
-    if "access_token" not in token:
-        raise Exception(f"Token Error: {token}")
+    if "access_token" not in res:
+        raise Exception(f"Token Error: {res}")
 
-    return token["access_token"]
+    return res["access_token"]
 
-access_token = get_access_token()
+ACCESS_TOKEN = get_access_token()
 
-# =========================
+# =====================
 # YOUTUBE API
-# =========================
+# =====================
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 def get_videos():
-    request = youtube.search().list(
+    return youtube.search().list(
         q="official football match highlights premier league ucl world cup",
         part="snippet",
         maxResults=5,
         order="date",
         type="video"
-    )
-    return request.execute()
+    ).execute()
 
-# =========================
+# =====================
 # FILTER SYSTEM
-# =========================
-bad_words = ["funny", "meme", "prank", "fail", "comedy", "edit"]
+# =====================
+BAD_WORDS = [
+    "funny", "meme", "prank", "edit",
+    "shorts", "comedy", "reaction", "tiktok"
+]
 
-def is_bad_video(title):
+def is_bad(title):
     t = title.lower()
-    return any(word in t for word in bad_words)
+    return any(w in t for w in BAD_WORDS) or len(title) < 25
 
-# =========================
+# =====================
 # CATEGORY SYSTEM
-# =========================
+# =====================
 def get_category(title):
     t = title.lower()
 
@@ -82,10 +84,10 @@ def get_category(title):
     else:
         return "premierleague"
 
-# =========================
-# POST TO BLOGGER
-# =========================
-def post_to_blogger(title, video_id, desc, label):
+# =====================
+# BLOGGER POST
+# =====================
+def post(title, video_id, desc, label):
     url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts/"
 
     content = f"""
@@ -97,7 +99,7 @@ def post_to_blogger(title, video_id, desc, label):
     """
 
     headers = {
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
 
@@ -109,13 +111,12 @@ def post_to_blogger(title, video_id, desc, label):
 
     res = requests.post(url, headers=headers, json=data)
     print("Status:", res.status_code)
-    print(res.text)
 
-# =========================
-# MAIN
-# =========================
+# =====================
+# MAIN LOGIC
+# =====================
 def main():
-    global posted_videos
+    global posted
 
     videos = get_videos()
 
@@ -124,29 +125,29 @@ def main():
         title = item["snippet"]["title"]
         desc = item["snippet"]["description"][:150]
 
-        # ❌ duplicate check
-        if video_id in posted_videos:
+        # duplicate check
+        if video_id in posted:
             continue
 
-        # ❌ filter bad videos
-        if is_bad_video(title):
+        # filter check
+        if is_bad(title):
             continue
 
         # category
         label = get_category(title)
 
         # post
-        post_to_blogger(title, video_id, desc, label)
+        post(title, video_id, desc, label)
 
         # save
-        posted_videos.add(video_id)
+        posted.add(video_id)
 
     # save file
-    with open(POSTED_FILE, "w") as f:
-        json.dump(list(posted_videos), f)
+    with open(POST_FILE, "w") as f:
+        json.dump(list(posted), f)
 
-# =========================
+# =====================
 # RUN
-# =========================
+# =====================
 if __name__ == "__main__":
     main()
