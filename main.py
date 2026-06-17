@@ -1,10 +1,11 @@
 import os
 import json
+import time
 import requests
 from googleapiclient.discovery import build
 
 # =====================
-# ENV
+# CONFIG
 # =====================
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 BLOG_ID = os.getenv("BLOG_ID")
@@ -13,6 +14,12 @@ CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
 
 POST_FILE = "posted.json"
+
+# 🔥 DAILY LIMIT (IMPORTANT)
+DAILY_LIMIT = 5
+
+# delay between posts (seconds)
+DELAY_BETWEEN_POSTS = 10
 
 # =====================
 # LOAD POSTED VIDEOS
@@ -23,7 +30,7 @@ else:
     posted = set()
 
 # =====================
-# GET ACCESS TOKEN
+# ACCESS TOKEN
 # =====================
 def get_access_token():
     url = "https://oauth2.googleapis.com/token"
@@ -39,33 +46,30 @@ def get_access_token():
     res = r.json()
 
     if "access_token" not in res:
-        raise Exception(f"Token Error: {res}")
+        raise Exception(res)
 
     return res["access_token"]
 
 ACCESS_TOKEN = get_access_token()
 
 # =====================
-# YOUTUBE API
+# YOUTUBE
 # =====================
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 def get_videos():
     return youtube.search().list(
-        q="official football match highlights premier league ucl world cup",
+        q="official football highlights fifa euro champions league premier league",
         part="snippet",
-        maxResults=5,
+        maxResults=10,
         order="date",
         type="video"
     ).execute()
 
 # =====================
-# FILTER SYSTEM
+# FILTER
 # =====================
-BAD_WORDS = [
-    "funny", "meme", "prank", "edit",
-    "shorts", "comedy", "reaction", "tiktok"
-]
+BAD_WORDS = ["funny", "meme", "prank", "shorts", "edit", "comedy"]
 
 def is_bad(title):
     t = title.lower()
@@ -77,15 +81,17 @@ def is_bad(title):
 def get_category(title):
     t = title.lower()
 
-    if "world cup" in t:
-        return "worldcup"
+    if "world cup" in t or "fifa" in t:
+        return "fifa"
+    elif "euro" in t or "european championship" in t:
+        return "euro"
     elif "champions league" in t or "ucl" in t:
         return "ucl"
     else:
         return "premierleague"
 
 # =====================
-# BLOGGER POST
+# BLOG POST
 # =====================
 def post(title, video_id, desc, label):
     url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts/"
@@ -109,18 +115,23 @@ def post(title, video_id, desc, label):
         "labels": [label]
     }
 
-    res = requests.post(url, headers=headers, json=data)
-    print("Status:", res.status_code)
+    r = requests.post(url, headers=headers, json=data)
+    print("Posted:", title)
+    print("Status:", r.status_code)
 
 # =====================
-# MAIN LOGIC
+# MAIN
 # =====================
 def main():
     global posted
 
     videos = get_videos()
+    count = 0
 
     for item in videos["items"]:
+        if count >= DAILY_LIMIT:
+            break
+
         video_id = item["id"]["videoId"]
         title = item["snippet"]["title"]
         desc = item["snippet"]["description"][:150]
@@ -141,6 +152,10 @@ def main():
 
         # save
         posted.add(video_id)
+        count += 1
+
+        # delay (important for spam safety)
+        time.sleep(DELAY_BETWEEN_POSTS)
 
     # save file
     with open(POST_FILE, "w") as f:
