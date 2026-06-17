@@ -15,14 +15,11 @@ REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
 
 POST_FILE = "posted.json"
 
-# 🔥 DAILY LIMIT (IMPORTANT)
 DAILY_LIMIT = 5
-
-# delay between posts (seconds)
-DELAY_BETWEEN_POSTS = 10
+DELAY = 8
 
 # =====================
-# LOAD POSTED VIDEOS
+# LOAD POST HISTORY
 # =====================
 if os.path.exists(POST_FILE):
     posted = set(json.load(open(POST_FILE)))
@@ -32,34 +29,33 @@ else:
 # =====================
 # ACCESS TOKEN
 # =====================
-def get_access_token():
-    url = "https://oauth2.googleapis.com/token"
+def get_token():
+    r = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "refresh_token": REFRESH_TOKEN,
+            "grant_type": "refresh_token"
+        }
+    )
+    data = r.json()
 
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "refresh_token": REFRESH_TOKEN,
-        "grant_type": "refresh_token"
-    }
+    if "access_token" not in data:
+        raise Exception(data)
 
-    r = requests.post(url, data=data)
-    res = r.json()
+    return data["access_token"]
 
-    if "access_token" not in res:
-        raise Exception(res)
-
-    return res["access_token"]
-
-ACCESS_TOKEN = get_access_token()
+ACCESS_TOKEN = get_token()
 
 # =====================
-# YOUTUBE
+# YOUTUBE SEARCH (STRICT)
 # =====================
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 def get_videos():
     return youtube.search().list(
-        q="official football highlights fifa euro champions league premier league",
+        q="official match highlights fifa world cup euro champions league premier league",
         part="snippet",
         maxResults=10,
         order="date",
@@ -67,39 +63,58 @@ def get_videos():
     ).execute()
 
 # =====================
-# FILTER
+# CLEAN FILTER (IMPORTANT)
 # =====================
-BAD_WORDS = ["funny", "meme", "prank", "shorts", "edit", "comedy"]
+BAD_WORDS = [
+    "funny", "meme", "prank", "shorts",
+    "comedy", "reaction", "edit", "tiktok"
+]
 
-def is_bad(title):
+FOOTBALL_WORDS = [
+    "goal", "match", "highlights",
+    "fifa", "world cup", "euro",
+    "ucl", "champions", "premier"
+]
+
+def is_clean(title):
     t = title.lower()
-    return any(w in t for w in BAD_WORDS) or len(title) < 25
+
+    if any(b in t for b in BAD_WORDS):
+        return False
+
+    if len(title) < 30:
+        return False
+
+    if not any(f in t for f in FOOTBALL_WORDS):
+        return False
+
+    return True
 
 # =====================
 # CATEGORY SYSTEM
 # =====================
-def get_category(title):
+def category(title):
     t = title.lower()
 
     if "world cup" in t or "fifa" in t:
-        return "fifa"
-    elif "euro" in t or "european championship" in t:
-        return "euro"
+        return "FIFA"
+    elif "euro" in t:
+        return "EURO"
     elif "champions league" in t or "ucl" in t:
-        return "ucl"
+        return "UCL"
     else:
-        return "premierleague"
+        return "EPL"
 
 # =====================
 # BLOG POST
 # =====================
-def post(title, video_id, desc, label):
+def post(title, vid, desc, label):
     url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts/"
 
     content = f"""
     <h2>{title}</h2>
     <iframe width="100%" height="315"
-    src="https://www.youtube.com/embed/{video_id}"
+    src="https://www.youtube.com/embed/{vid}"
     allowfullscreen></iframe>
     <p>{desc}</p>
     """
@@ -116,11 +131,10 @@ def post(title, video_id, desc, label):
     }
 
     r = requests.post(url, headers=headers, json=data)
-    print("Posted:", title)
-    print("Status:", r.status_code)
+    print("POSTED:", title, r.status_code)
 
 # =====================
-# MAIN
+# MAIN ENGINE
 # =====================
 def main():
     global posted
@@ -128,41 +142,36 @@ def main():
     videos = get_videos()
     count = 0
 
-    for item in videos["items"]:
+    for v in videos["items"]:
         if count >= DAILY_LIMIT:
             break
 
-        video_id = item["id"]["videoId"]
-        title = item["snippet"]["title"]
-        desc = item["snippet"]["description"][:150]
+        vid = v["id"]["videoId"]
+        title = v["snippet"]["title"]
+        desc = v["snippet"]["description"][:150]
 
         # duplicate check
-        if video_id in posted:
+        if vid in posted:
             continue
 
-        # filter check
-        if is_bad(title):
+        # clean filter
+        if not is_clean(title):
             continue
 
         # category
-        label = get_category(title)
+        label = category(title)
 
         # post
-        post(title, video_id, desc, label)
+        post(title, vid, desc, label)
 
         # save
-        posted.add(video_id)
+        posted.add(vid)
         count += 1
 
-        # delay (important for spam safety)
-        time.sleep(DELAY_BETWEEN_POSTS)
+        time.sleep(DELAY)
 
-    # save file
     with open(POST_FILE, "w") as f:
         json.dump(list(posted), f)
 
-# =====================
-# RUN
-# =====================
 if __name__ == "__main__":
     main()
